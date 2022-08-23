@@ -1,6 +1,8 @@
 import meep as mp
+# import meep_retrieval as mr
 import numpy as np
 from meep.materials import Au, Ag
+from mpi4py import MPI
 
 import os, sys
 sys.path.append('../metamaterials')

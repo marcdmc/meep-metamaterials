@@ -1,7 +1,10 @@
 import meep as mp
-import meep_retrieval as mr
 import numpy as np
 from meep.materials import Au, Ag
+
+import os, sys
+sys.path.append('../metamaterials')
+from metamaterials import meep_retrieval as mr
 
 lambda_min = 1
 lambda_max = 4
