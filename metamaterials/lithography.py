@@ -1,3 +1,4 @@
+from turtle import left
 import numpy as np
 import pandas as pd
 from scipy import io
@@ -5,41 +6,13 @@ import matplotlib.pyplot as plt
 import meep as mp
 from meep.materials import Ag
 
-shrink_factor = 10 # Shrinkage factor of the gel
-# Gel dimensions in mm
-gel_x = 10
-gel_y = 10
-
-# Units in µm
-a = 1.2 # Lattice constant
-d = .55*a # Square dimensions
-t = 0.020 # Thickness of metal
-metal = Ag
-
-d = 0.01
-# geometry = [
-#     mp.Block(size=mp.Vector3(d, d, t), center=mp.Vector3(0, 0, -t/2), material=metal),
-# ]
-
-l = .320
-w = .090
-a = .450 # Lattice constant
-gap = .070
-geometry = [
-    mp.Block(size=mp.Vector3(l, w, t), center=mp.Vector3(0, l/2-w/2, -t/2), material=metal),
-    mp.Block(size=mp.Vector3(l, w, t), center=mp.Vector3(0, -l/2+w/2, -t/2), material=metal),
-    mp.Block(size=mp.Vector3(w, l-2*w, t), center=mp.Vector3(l/2-w/2, 0, -t/2), material=metal),
-    mp.Block(size=mp.Vector3(w, l-2*w, t), center=mp.Vector3(-l/2+w/2, 0, -t/2), material=metal),
-    # mp.Block(size=mp.Vector3(gap, w, t), center=mp.Vector3(0, l/2-w/2, -t/2), material=mp.Medium(epsilon=1)), # Gap
-]
-
 def draw_block(block, x_offset, y_offset):
     """Draws a MEEP block geometry object in lithography system units."""
     M = pd.DataFrame(columns=['xi', 'yi', 'xf', 'yf'])
-    # dx = 0.0005
-    # dy = 0.0005
-    dx = 0.01
-    dy = 0.01
+    dx = 0.0005
+    dy = 0.0005
+    # dx = 0.01
+    # dy = 0.01
     pwr = 0.1
     width = block.size.x
     height = block.size.y
@@ -47,7 +20,7 @@ def draw_block(block, x_offset, y_offset):
         for y in np.arange(-height/2, height/2, dy):
             row = pd.DataFrame(data={'xi': [x], 'yi': [y], 'xf': [x], 'yf': [y+dy]})
             M = pd.concat([M, row])
-        row = pd.DataFrame({'xi': [x], 'yi': [height/2], 'xf': [x+dx], 'yf': [-height/2]})
+        row = pd.DataFrame({'xi': [x], 'yi': [y+dy], 'xf': [x+dx], 'yf': [-height/2]})
         M = pd.concat([M, row])
     M = M[:-1]
     M['xi'] = M['xi'] + x_offset
@@ -57,7 +30,7 @@ def draw_block(block, x_offset, y_offset):
     return M
 
 def draw_geometry(geometry, X_offset, Y_offset):
-    """Draws a unit cell in lithography system units given a MEEP geometry."""
+    """Draws a single unit cell in lithography system units given a MEEP geometry."""
     # TODO: Sort blocks by location to avoid crossing lines
     M = pd.DataFrame(columns=['xi', 'yi', 'xf', 'yf'])
     prev = False
@@ -88,24 +61,61 @@ def draw_geometry(geometry, X_offset, Y_offset):
 
     return M
 
-def draw_metamaterial(geometry, nrows, ncols):
-    """Draws a metamaterial given a MEEP geometry."""
-    # TODO: Center cells instead of beginning at (0, 0)
+def draw_metamaterial(geometry, a, nrows, ncols):
+    """
+    Draws a metamaterial given a MEEP geometry.
+    
+    Parameters
+    - `geometry`: MEEP geometry
+    - `a`: Unit cell size
+    - `nrows`: Number of rows of unit cells to draw
+    - `ncols`: Number of columns of unit cells to draw
+    """
     M = pd.DataFrame(columns=['xi', 'yi', 'pi', 'xf', 'yf', 'pf', 't', 'X', 'Y', 'Z'])
+    centroid = [(nrows-1)*a/2, (ncols-1)*a/2]
     for i in np.arange(0, nrows):
         for j in np.arange(0, ncols):
-            x_offset = i*a
-            y_offset = j*a
-            M = pd.concat([M, draw_geometry(geometry, x_offset, y_offset)])
+            x_offset = i*a - centroid[0]
+            y_offset = j*a - centroid[1]
 
             # Join with last unit cell
-            # if i > 0 and j > 0:
-            #     last = M.iloc[-1]
-            #     next = geometry[0].center
-            #     row = pd.DataFrame(data={'xi': [last['xf']], 'yi': [last['yf']], 'xf': [-width/2+x_offset], 'yf': [-height/2+y_offset]})
-            #     M = pd.concat([M, row])
+            if i > 0 or j > 0:
+                last = M.iloc[-1]
+                # Sort to find the leftmost block and join with it
+                leftmost_corners = [block.center.x-block.size.x/2 for block in geometry]
+                lm = geometry[leftmost_corners.index(max(leftmost_corners))]
+                row = pd.DataFrame(data={'xi': [last['xf']], 'yi': [last['yf']], 'xf': [lm.center.x-lm.size.x/2+x_offset], 'yf': [lm.center.y-lm.size.y/2+y_offset]})
+                M = pd.concat([M, row])
+
+            # Draw unit cell
+            M = pd.concat([M, draw_geometry(geometry, x_offset, y_offset)])
+
+            
     
     return M
+
+
+def plot_lithography(M):
+    """Plots the lithography printing instructions."""
+    xi = np.array(M['xi'])
+    yi = np.array(M['yi'])
+    xf = np.array(M['xf'])
+    yf = np.array(M['yf'])
+    nrows = len(M)
+
+    plt.figure()
+    plt.axis('equal')
+
+    last = 0
+    for i in np.arange(0, nrows):
+        if xf[i] != xi[last]:   
+            plt.plot([xi[last], xi[i]], [yi[last], yi[i]], 'k-')
+            plt.plot([xi[i], xf[i]], [yi[i], yf[i]], 'k-')
+            last = i+1
+    plt.plot([xi[last], xf[i]], [yi[last], yf[i]], 'k-')
+    plt.show()
+
+    return
 
 
 def save_to_matlab(M, filename, name='data'):
@@ -114,3 +124,10 @@ def save_to_matlab(M, filename, name='data'):
     for index, row in M.iterrows():
         data.append(np.array(row, dtype=float))
     io.savemat(filename, {name: data})
+
+
+def read_matlab(filename, name='data'):
+    # Untested
+    """Reads the lithography printing instructions from a mat file."""
+    data = io.loadmat(filename)
+    return data['data']
