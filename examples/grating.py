@@ -25,12 +25,13 @@ sim = mr.Simulation(resolution=60, cell=a, fmin=1/lambda_max, fmax=1/lambda_min,
 sim.set_geometry(geometry, Ag)
 sim.run()
 [S11, S21] = sim.get_s_params(plot='wl', plot_title='square a = %.2f, d = %.2f' % (a, d))
-print('aaaaaa')
 
 toc = time.perf_counter()
 total_time = toc-tic
 print("time for code block")
 print(total_time)
+
+mp.all_wait()
 
 # Open file and append time
 with open('time.txt', 'a') as f:
