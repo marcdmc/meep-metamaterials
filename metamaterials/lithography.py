@@ -9,8 +9,8 @@ from meep.materials import Ag
 def draw_block(block, x_offset, y_offset):
     """Draws a MEEP block geometry object in lithography system units."""
     M = pd.DataFrame(columns=['xi', 'yi', 'xf', 'yf'])
-    dx = 0.0005
-    dy = 0.0005
+    dx = 0.0001
+    dy = 0.0001
     # dx = 0.01
     # dy = 0.01
     pwr = 0.1
@@ -50,14 +50,14 @@ def draw_geometry(geometry, X_offset, Y_offset):
         # Draw block
         M = pd.concat([M, draw_block(block, x_offset, y_offset)])
 
-        # Insert remaining columns
-        # TODO: Change laser power, XYZ coordinates
-        M.insert(2, 'pi', [0.1]*len(M))
-        M.insert(5, 'pf', [0.1]*len(M))
-        M.insert(6, 't', [1]*len(M))
-        M.insert(7, 'X', [0]*len(M))
-        M.insert(8, 'Y', [0]*len(M))
-        M.insert(9, 'Z', [0]*len(M))
+    # Insert remaining columns
+    # TODO: Change laser power, XYZ coordinates
+    M.insert(2, 'pi', [0.1]*len(M))
+    M.insert(5, 'pf', [0.1]*len(M))
+    M.insert(6, 't', [1]*len(M))
+    M.insert(7, 'X', [0]*len(M))
+    M.insert(8, 'Y', [0]*len(M))
+    M.insert(9, 'Z', [0]*len(M))
 
     return M
 
@@ -66,8 +66,8 @@ def draw_metamaterial(geometry, a, nrows, ncols):
     Draws a metamaterial given a MEEP geometry.
     
     Parameters
-    - `geometry`: MEEP geometry
-    - `a`: Unit cell size
+    - `geometry`: MEEP geometry in mm
+    - `a`: Unit cell size in mm
     - `nrows`: Number of rows of unit cells to draw
     - `ncols`: Number of columns of unit cells to draw
     """
