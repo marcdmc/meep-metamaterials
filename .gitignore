@@ -132,3 +132,5 @@ dmypy.json
 myScript.sh.log*
 test.ipynb
 slurm-*.out
+results/
+output*.txt
