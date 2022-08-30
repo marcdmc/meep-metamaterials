@@ -112,7 +112,7 @@ class Simulation:
         self.sim.plot2D(output_plane=mp.Volume(size=mp.Vector3(self.cell, 0, self.depth), center=mp.Vector3(0,0,0)))
 
 
-    def get_s_params(self, d=0.02, plot='freqs', plot_title=None):
+    def get_s_params(self, do_plot=False, do_save=False, d=0.02, plot='freqs', plot_title=None):
         """Get s parameters."""
 
         self.d = d
@@ -134,8 +134,10 @@ class Simulation:
         self.S11 = S11 * np.exp(-1j*k*(2*d_ref+0.2))
         self.S21 = S21 * np.exp(-1j*k*(d_ref+0.2)-1j*k*n_SiO2*d_tran) # TODO: Generalize for any substrate
 
-        self.save_s_params()
-        self.plot_s_params(plot, plot_title)
+        if do_save:
+            self.save_s_params()
+        if do_plot:
+            self.plot_s_params(plot, plot_title)
 
         return [self.S11, self.S21]
 
@@ -166,6 +168,7 @@ class Simulation:
         S21 = self.S21
 
         if plot == 'freqs':
+            print('Plotting S parameters...')
             plt.figure()
             plt.plot(f*c/1e6, np.abs(S11)**2, 'b', label='$|S_{11}|^2$')
             plt.plot(f*c/1e6, np.abs(S21)**2, 'r', label='$|S_{12}|^2$')
@@ -190,6 +193,7 @@ class Simulation:
             plt.savefig(self.dir + 's_params_TE' + timestr +'.png')
         elif self.pol == 1:
             plt.savefig(self.dir + 's_params_TM' + timestr + '.png')
+        print('Saving S parameters plot...')
 
     
     def add_layers(self, n, geometry):
@@ -201,6 +205,10 @@ class Simulation:
         # for i in range(n):
         #     geometry.add(mp.Block(size=mp.Vector3(a, a, a), center=mp.Vector3(0,0,i*a)))
         # return geometry
+
+    
+    def get_freqs(self):
+        return self.freqs
 
         
 
