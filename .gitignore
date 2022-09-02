@@ -134,3 +134,4 @@ test.ipynb
 slurm-*.out
 results/
 output*.txt
+examples/lithography/instructions/
