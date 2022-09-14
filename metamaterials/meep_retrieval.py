@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import time
 
+from . import s_parameters, constants as cnst, aux
+
 # Constants
 c = 299792458 # Speed of light in vacuum (m/s)
 
@@ -95,7 +97,7 @@ class Simulation:
         fcen = 0.5*(self.fmin+self.fmax)
         self.refl = self.sim.add_mode_monitor(fcen, self.fmax-self.fmin, self.nfreqs, refl_fr)
         self.tran = self.sim.add_mode_monitor(fcen, self.fmax-self.fmin, self.nfreqs, tran_fr)
-        self.freqs = mp.get_flux_freqs(self.refl)
+        # self.freqs = mp.get_flux_freqs(self.refl)
 
         pt = mp.Vector3(0,0,self.depth/2-self.dpml-0.1)
         self.sim.run(until_after_sources=mp.stop_when_fields_decayed(50,self.pol,pt,0.001)) # Run for 50 steps after field has decayed to 0.001
@@ -112,7 +114,7 @@ class Simulation:
         self.sim.plot2D(output_plane=mp.Volume(size=mp.Vector3(self.cell, 0, self.depth), center=mp.Vector3(0,0,0)))
 
 
-    def get_s_params(self, do_plot=False, do_save=False, d=0.02, plot='freqs', plot_title=None):
+    def get_s_params(self, do_plot=False, do_save=False, d=0.02, plot='freqs', plot_title=None, filename=None):
         """Get s parameters."""
 
         self.d = d
@@ -137,7 +139,7 @@ class Simulation:
         if do_save:
             self.save_s_params()
         if do_plot:
-            self.plot_s_params(plot, plot_title)
+            self.plot_s_params(plot, plot_title, filename)
 
         return [self.S11, self.S21]
 
@@ -158,7 +160,7 @@ class Simulation:
         else:
             raise Exception('S parameters not set. Use Simulation.get_s_params()')
 
-    def plot_s_params(self, plot, plot_title):
+    def plot_s_params(self, plot, plot_title, filename=None):
         """Plot and save plot of s parameters."""
         if not hasattr(self, 'S11') or not hasattr(self, 'S21'):
             raise Exception('S parameters not set. Use Simulation.get_s_params()')
@@ -190,8 +192,10 @@ class Simulation:
 
         timestr = time.strftime("%Y-%m-%d_%H:%M:%S")
         if self.pol == 0:
+            filename = self.dir + 's_params_TE' + timestr +'.png' if filename is None else filename
             plt.savefig(self.dir + 's_params_TE' + timestr +'.png')
         elif self.pol == 1:
+            filename = self.dir + 's_params_TE' + timestr +'.png' if filename is None else filename
             plt.savefig(self.dir + 's_params_TM' + timestr + '.png')
         print('Saving S parameters plot...')
 
@@ -210,7 +214,6 @@ class Simulation:
     def get_freqs(self):
         return self.freqs
 
-        
 
 
 def retrieval(freqs, S11, S21, d, branch=0):

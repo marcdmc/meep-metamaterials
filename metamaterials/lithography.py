@@ -7,7 +7,7 @@ import meep as mp
 from meep.materials import Ag
 
 
-def draw_block(block, x_offset, y_offset, speed=1, power=1):
+def draw_block(block, x_offset, y_offset, speed=1, power=1, dx=0.0005):
     """Draw 3d block in lithography system units.
     
     Parameters:
@@ -21,12 +21,10 @@ def draw_block(block, x_offset, y_offset, speed=1, power=1):
     width = block.size.x
     height = block.size.y
     depth = block.size.z
-    dx = 0.0005
-    dz = 0.0005
-    for z in np.arange(-depth/2, depth/2, dz):
+    for z in np.arange(-depth/2, depth/2, dx):
         for x in np.arange(-width/2, width/2, dx):
-            row1 = pd.DataFrame(data={'xi': [x], 'yi': [-height/2], 'xf': [x], 'yf': [height/2], 'pi': [power], 'pf': [power], 't': [height/speed], 'X': [0], 'Y': [0], 'Z': [z]})
-            row2 = pd.DataFrame(data={'xi': [x], 'yi': [height/2], 'xf': [x+dx], 'yf': [-height/2], 'pi': [power], 'pf': [power], 't': [height/speed], 'X': [0], 'Y': [0], 'Z': [z]})
+            row1 = pd.DataFrame(data={'xi': [x], 'yi': [-height/2], 'xf': [x], 'yf': [height/2], 'pi': [power], 'pf': [power], 't': [1], 'X': [0], 'Y': [0], 'Z': [z]})
+            row2 = pd.DataFrame(data={'xi': [x], 'yi': [height/2], 'xf': [x+dx], 'yf': [-height/2], 'pi': [power], 'pf': [power], 't': [1], 'X': [0], 'Y': [0], 'Z': [z]})
             M = pd.concat([M, row1, row2])
         M = M[:-1]
 
@@ -37,7 +35,7 @@ def draw_block(block, x_offset, y_offset, speed=1, power=1):
 
     return M
 
-def draw_geometry(geometry, X_offset, Y_offset):
+def draw_geometry(geometry, X_offset, Y_offset, dx=0.0005, pwr=1, speed=1):
     """Draws a single unit cell in lithography system units given a MEEP geometry."""
     # TODO: Sort blocks by location to avoid crossing lines, change laser power
     M = pd.DataFrame(columns=['xi', 'yi', 'xf', 'yf'])
@@ -49,11 +47,11 @@ def draw_geometry(geometry, X_offset, Y_offset):
         height = block.size.y
 
         # Draw block
-        M = pd.concat([M, draw_block(block, x_offset, y_offset)])
+        M = pd.concat([M, draw_block(block, x_offset, y_offset, dx=dx, power=pwr, speed=speed)])
 
     return M
 
-def draw_metamaterial(geometry, a, nrows, ncols, nlayers=1):
+def draw_metamaterial(geometry, a, nrows, ncols, nlayers=1, pos=[0,0], dx=0.0005, pwr=1, speed=1):
     """
     Draws a metamaterial given a MEEP geometry.
     
@@ -63,11 +61,13 @@ def draw_metamaterial(geometry, a, nrows, ncols, nlayers=1):
     - `nrows`: Number of rows of unit cells to draw
     - `ncols`: Number of columns of unit cells to draw
     - `nlayers`: Number of layers of unit cells to draw
+    - `pos`: Offset from the origin in mm
+    - `dx`: Step size of drawing in mm
     """
     M = pd.DataFrame(columns=['xi', 'yi', 'pi', 'xf', 'yf', 'pf', 't', 'X', 'Y', 'Z'])
     centroid = [(ncols-1)*a/2, (nrows-1)*a/2, (nlayers-1)*a/2]
 
-    M_sing = draw_geometry(geometry, 0, 0) # Single cell
+    M_sing = draw_geometry(geometry, 0, 0, dx, pwr, speed) # Single cell
 
     for i in np.arange(0, ncols):
         for j in np.arange(0, nrows):
@@ -84,6 +84,10 @@ def draw_metamaterial(geometry, a, nrows, ncols, nlayers=1):
                 m['Z'] = m['Z'] + z_offset
 
                 M = pd.concat([M, m])
+
+    # Add offset
+    M['X'] = M['X'] + pos[0]
+    M['Y'] = M['Y'] + pos[1]
     
     return M
 
