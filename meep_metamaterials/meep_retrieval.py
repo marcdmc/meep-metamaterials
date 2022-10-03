@@ -216,9 +216,35 @@ class Simulation:
 
 
 
-def retrieval(freqs, S11, S21, d, branch=0):
-    freqs = np.array(freqs)
+def retrieval(freqs, S11, S21, d, branch=0, prepad=0, postpad=0, n_in=1, n_out=1, plot_branches=False, ensure_continuity=False):
+    """
+    Get the bulk permittivity and permeability of any material given its S parameters.
+    Based on the method by Chen et. al. (2004).
+    ---
+    Parameters:
+    `freqs`: Frequencies at which S parameters are measured.
+    `S11`: Reflection coefficient.
+    `S21`: Transmission coefficient.
+    `d`: Thickness of the material.
+    `branch`: Cosine branch to use. Default is `0`. (See paper by Chen et. al.)
+    ---
+    Optional parameters:
+    `prepad`: Space between material and where the S11 parameter is measured. Default is `0`.
+    `postpad`: Space between material and where the S21 parameter is measured. Default is `0`.
+    `n_in`: Refractive index of the medium where S11 is measured. Default is `1` (air).
+    `n_out`: Refractive index of the medium where S21 is measured. Default is `1` (air).
+    `plot_branches`: Plot the cosine branches. Default is `False`.
+    `ensure_continuity`: Ensure continuity of the cosine branches. Default is `False`.
+    """
+    freqs, S11, S21 = np.array(freqs), np.array(S11), np.array(S21)
     wl = 1 / freqs
+
+    k_in = 2*np.pi*freqs * n_in
+    k_out = 2*np.pi*freqs * n_out
+
+    # Compensate phase delay between material and monitors/source.
+    S11 *= np.exp(-1j*k_in*prepad)
+    S21 *= np.exp(-1j*k_out*postpad)
 
     k = 2*np.pi/wl
     z = np.sqrt(((1+S11)**2-S21**2)/((1-S11)**2-S21**2))
@@ -228,23 +254,43 @@ def retrieval(freqs, S11, S21, d, branch=0):
     eps = n/z
     mu = n*z
 
-    return [eps, mu, n, z]
+    if plot_branches:
+        _plot_complex_branches(freqs, einkd, k, d, branch)
+
+    return {'eps': eps, 'mu': mu, 'n': n, 'z': z}
+
+def _plot_complex_branches(freqs, einkd, k, d, selected_branch):
+    plt.figure()
+    for branch in np.arange(-10, 10):
+        w = 2 if branch == selected_branch else 1
+        n = 1/(k*d) * ((np.imag(np.log(einkd))+2*np.pi*branch) - 1j*np.real(np.log(einkd)))
+        plt.plot(freqs, np.real(n), 'r', linewidth=w)
+    plt.ylim([-40, 40])
+    plt.show()
 
 
-def retrieve_from_excel(file):
-    # Read data from excel file
+def load_from_excel(file):
+    """
+    Load S parameters from excel file.
+    The columns must be 'f', 'R' and 'T' for the frequencies, S11 and S21 respectively.
+
+    Parameters:
+    `file`(`str`): Path to the excel file.
+    """
     df = pd.read_excel(file)
-    f = df.f.values
-    R = df.R.values
-    T = df.T.values
-    print(f)
+    f = np.array(df['f'].values)
+    R = np.array([complex(r) for r in df['R'].values])
+    T = np.array([complex(t) for t in df['T'].values])
+
+    return {'f': f, 'R': R, 'T': T}
 
 
 def DrudeMetal(wp, wc):
     """Define metal using Drude model.
+    
     Attributes:
-        wp (float): Plasma frequency.
-        wc (float): Collision frequency.
+        `wp` (`float`): Plasma frequency.
+        `wc` (`float`): Collision frequency.
     """
     wp /= (c*1e6) # Convert to meep units
     wc /= (c*1e6)
@@ -267,3 +313,18 @@ def Gold():
     susc = mp.DrudeSusceptibility(frequency=wp, gamma=gamma*1.65, sigma=1)
 
     return mp.Medium(epsilon=1, E_susceptibilities=[susc])
+
+
+
+
+# Methods for meep simulations
+def get_s_params(sim, refl, tran):
+    if not type(sim) == mp.simulation.Simulation:
+        raise Exception('Simulation object not provided')
+
+    p1_coeff = sim.get_eigenmode_coefficients(refl, [1]).alpha[0]
+    p2_coeff = sim.get_eigenmode_coefficients(tran, [1]).alpha[0]
+
+    c1 = np.array([coef[1] for coef in p1_coeff])
+    c2 = np.array([coef[0] for coef in p2_coeff])
+    c3 = np.array([coef[0] for coef in p1_coeff])

@@ -7,17 +7,22 @@ from meep.materials import Ag
 a = 1.2
 d = a/2
 t = 0.2
-dpml = 1.0
-pad = 1
+dpml = 2.0
+pad = 2
 
 resolution = 80
 pol = mp.Ex
 
+# N = 5
+# n = mp.divide_parallel_processes(N)
+# index = np.linspace(2.5, 5, N)
+
 block = mp.Block(size=mp.Vector3(d,d,t), center=mp.Vector3(), material=Ag)
+# block = mp.Block(size=mp.Vector3(d,d,t), center=mp.Vector3(), material=mp.Medium(index=index[n]))
 
 fcen = 1
 df = 0.8
-nfreq = 60
+nfreq = 120
 
 src = mp.Source(mp.GaussianSource(fcen, fwidth=df), component=pol, center=mp.Vector3(z=-t/2-pad+0.1), size=mp.Vector3(a,a))
 
@@ -50,10 +55,30 @@ T = np.abs(c2)**2 / np.abs(c3)**2
 
 res_freq = 0.5*(wl[np.argmax(T)]+wl[np.argmin(T)])
 
+# mp.all_wait()
+
+# Rs = mp.merge_subgroup_data(R)
+# Ts = mp.merge_subgroup_data(T)
+# res_freqs = mp.merge_subgroup_data(res_freq)
+
+# for i in range(N):
+#     r = [a[i] for a in Rs]
+#     t = [a[i] for a in Rs]
+#     f = [a[i] for a in res_freqs]
+#     plt.figure()
+#     plt.plot(wl, r, label='R')
+#     plt.plot(wl, t, label='T')
+#     plt.title('3D grating period %.1f µm, index %.1f and resonance at %.2f nm' % (a, n, f))
+#     plt.xlabel('Wavelength (µm)')
+#     plt.legend()
+#     title = 'square_grating_%.2fum_n=%.1f' % (f, n)
+#     plt.savefig('results/'+title+'.png')
+
 plt.plot(wl, R, label='R')
 plt.plot(wl, T, label='T')
-plt.title('3D Ag grating period %.1f µm resonance at %.2f nm' % (a, res_freq))
+plt.title('3D Ag grating period %.1f µm' % a)
 plt.xlabel('Wavelength (µm)')
 plt.legend()
-title = 'square_grating_%.2fum' % res_freq
-plt.savefig('results/'+title+'.png')
+# title = 'square_grating_%.2fum_n=%.1f' % (res_freq, n)
+title = 'square_grating_%.2fum' % (res_freq)
+plt.savefig('results/3D_'+title+'.png')

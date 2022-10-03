@@ -1,4 +1,3 @@
-from turtle import left
 import numpy as np
 import pandas as pd
 from scipy import io
@@ -25,6 +24,14 @@ def draw_block(block, x_offset, y_offset, speed=1, power=1, dx=0.0005):
         for x in np.arange(-width/2, width/2, dx):
             row1 = pd.DataFrame(data={'xi': [x], 'yi': [-height/2], 'xf': [x], 'yf': [height/2], 'pi': [power], 'pf': [power], 't': [1], 'X': [0], 'Y': [0], 'Z': [z]})
             row2 = pd.DataFrame(data={'xi': [x], 'yi': [height/2], 'xf': [x+dx], 'yf': [-height/2], 'pi': [power], 'pf': [power], 't': [1], 'X': [0], 'Y': [0], 'Z': [z]})
+            M = pd.concat([M, row1, row2])
+        M = M[:-1]
+
+    # If there is no depth print in 2D
+    if depth == 0:
+        for x in np.arange(-width/2, width/2, dx):
+            row1 = pd.DataFrame(data={'xi': [x], 'yi': [-height/2], 'xf': [x], 'yf': [height/2], 'pi': [power], 'pf': [power], 't': [1], 'X': [0], 'Y': [0], 'Z': [0]})
+            row2 = pd.DataFrame(data={'xi': [x], 'yi': [height/2], 'xf': [x+dx], 'yf': [-height/2], 'pi': [power], 'pf': [power], 't': [1], 'X': [0], 'Y': [0], 'Z': [0]})
             M = pd.concat([M, row1, row2])
         M = M[:-1]
 
@@ -75,7 +82,6 @@ def draw_metamaterial(geometry, a, nrows, ncols, nlayers=1, pos=[0,0], dx=0.0005
                 x_offset = i*a - centroid[0]
                 y_offset = j*a - centroid[1]
                 z_offset = k*a - centroid[2]
-
                 m = M_sing.copy()
                 m['xi'] = m['xi'] + x_offset
                 m['yi'] = m['yi'] + y_offset
@@ -151,3 +157,25 @@ def read_matlab(filename, name='data'):
     """Reads the lithography printing instructions from a mat file."""
     data = io.loadmat(filename)
     return pd.DataFrame(data[name], columns=['xi', 'yi', 'pi', 'xf', 'yf', 'pf', 't', 'X', 'Y', 'Z'])
+
+
+def img_to_geometry(img, scale=1):
+    """Converts an image to a MEEP geometry.
+    
+    Parameters
+    - `img`: Image to convert
+    - `scale`: Scale factor to convert image to mm
+    """
+    img = np.array(img).astype(float)
+    img = img / np.max(img)
+    img = 1 - img
+
+    geometry = []
+    for i in np.arange(0, img.shape[0]):
+        for j in np.arange(0, img.shape[1]):
+            if img[i,j] > 0.5:
+                geometry.append(mp.Block(center=mp.Vector3(j*scale, i*scale),
+                                         size=mp.Vector3(scale, scale),
+                                         material=mp.Medium(epsilon=1)))
+
+    return geometry
