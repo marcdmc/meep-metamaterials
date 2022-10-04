@@ -36,6 +36,7 @@ $ mpirun -n 4 python example.py
 Basic example: how to get the S-parameters from a square grating.
 ```python
 import meep as mp
+import numpy as np
 from meep_metamaterials import metamaterials as mm
 
 geometry = [mp.Block(mp.Vector3(.6, .2), center=mp.Vector3(), material=mp.Medium(epsilon=12))]
@@ -44,5 +45,5 @@ sim = mm.MetamaterialSimulation(period=1.2, geometry=geometry, freq_range=freq_r
 
 sim.run()
 
-[S11, S21] = sim.get_sparameters()
+[S11, S21] = sim.get_s_params()
 ```

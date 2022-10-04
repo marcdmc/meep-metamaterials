@@ -148,13 +148,26 @@ class MetamaterialSimulation():
                                   component=self.source.component,
                                   center=mp.Vector3(y=self.source.center.z),
                                   size=mp.Vector3(self.sx))
+            self.source = source_2d
         elif dimensions == 3:
             self.cell = mp.Vector3(self.sx, self.sy, self.sz)
         else:
             raise ValueError('Too many dimensions????')
         
-        print('Cell size: ', self.cell.x, self.cell.y, self.cell.z)
-        print('Geometry size: ', self.geometry[0].size.x, self.geometry[0].size.y, self.geometry[0].size.z)
+
+        # Add base substrate if substrate2 is different from substrate
+        # Now the metamaterial will be on top of the substrate2
+        # TODO: options for the metamaterial to be on top or fully embedded
+        if self.substrate2 != self.substrate:
+            if self.dimensions == 2:
+                sb = mp.Block(size=mp.Vector3(mp.inf, self.depth/2),
+                              center=mp.Vector3(y=-self.depth/4))
+                self.geometry.insert(0, sb)
+            elif self.dimensions == 3:
+                sb = mp.Block(size=mp.Vector3(mp.inf, mp.inf, self.depth/2),
+                              center=mp.Vector3(z=-self.depth/4))
+                self.geometry.insert(0, sb)
+
 
         self.sim = mp.Simulation(
             cell_size=self.cell,
@@ -168,15 +181,17 @@ class MetamaterialSimulation():
         )
 
         # Add field monitors
-        refl_center = -self.sz/2+self.dpml+0.2*self.depth/4
-        tran_center = self.sz/2-self.dpml-0.1*self.depth/4
+        refl_center = -self.depth/2+self.dpml+0.2*self.depth/4
+        tran_center = self.depth/2-self.dpml-0.1*self.depth/4
         if self.dimensions == 2:
-            refl_fr = mp.ModeRegion(center=mp.Vector3(y=-self.depth/2+self.dpml+0.2*self.depth), size=mp.Vector3(self.sx))
-            tran_fr = mp.ModeRegion(center=mp.Vector3(y=+self.depth/2-self.dpml-0.1*self.depth), size=mp.Vector3(self.sx))
+            refl_fr = mp.ModeRegion(center=mp.Vector3(y=refl_center), size=mp.Vector3(self.sx))
+            tran_fr = mp.ModeRegion(center=mp.Vector3(y=tran_center), size=mp.Vector3(self.sx))
         elif self.dimensions == 3:
-            refl_fr = mp.ModeRegion(center=mp.Vector3(z=-self.depth/2+self.dpml+10*self.pixel_size), size=mp.Vector3(self.sx, self.sy))
-            tran_fr = mp.ModeRegion(center=mp.Vector3(z=+self.depth/2-self.dpml-5*self.pixel_size), size=mp.Vector3(self.sx, self.sy))
+            refl_fr = mp.ModeRegion(center=mp.Vector3(z=refl_center), size=mp.Vector3(self.sx, self.sy))
+            tran_fr = mp.ModeRegion(center=mp.Vector3(z=tran_center), size=mp.Vector3(self.sx, self.sy))
 
+        self.refl_fr = refl_fr
+        self.tran_fr = tran_fr
 
         fcen = 0.5*(self.fmin+self.fmax)
         self.refl = self.sim.add_mode_monitor(fcen, self.fmax-self.fmin, self.nfreqs, refl_fr)
@@ -233,6 +248,7 @@ class MetamaterialSimulation():
                      filename: str = None):
         """Get s parameters from simulation."""
 
+        # Get reflection and transmission data
         coefs1 = self.sim.get_eigenmode_coefficients(self.refl, [1]).alpha[0]
         coefs2 = self.sim.get_eigenmode_coefficients(self.tran, [1]).alpha[0]
 
@@ -240,17 +256,25 @@ class MetamaterialSimulation():
         p2 = np.array([coef[0] for coef in coefs2]) # Transmitted field
         p3 = np.array([coef[0] for coef in coefs1]) # Incident field
 
+        # S parameters
         S11 = p1/p3
         S21 = p2/p3
 
+        # Compensate phase shift due to distance from the source and monitors
+        k = 2*np.pi*np.array(self.freqs)
         d = self.mm_thickness
         n_subs = self.substrate.epsilon_diag[0]
+        n_subs2 = self.substrate2.epsilon_diag[1]
+        d_from_source = self.source.center.z-d/2 if self.dimensions == 3 else np.abs(self.source.center.y)-d/2
+        d_refl = self.refl_fr.center.z-d/2 if self.dimensions == 3 else np.abs(self.refl_fr.center.y)-d/2
+        d_tran = self.tran_fr.center.z-d/2 if self.dimensions == 3 else np.abs(self.tran_fr.center.y)-d/2
 
-        k = 2*np.pi*np.array(self.freqs)
-        d_ref = self.sz/2-self.dpml-0.2-d
-        d_tran = self.sz/2-self.dpml-0.1
-        self.S11 = S11 * np.exp(-1j*k*(2*d_ref+0.2))
-        self.S21 = S21 * np.exp(-1j*k*(d_ref+0.2)-1j*k*n_subs*d_tran)
+        print(f'd_from_source = {d_from_source}')
+        print(f'd_refl = {d_refl}')
+        print(f'd_tran = {d_tran}')
+
+        self.S11 = S11 * np.exp(-1j*k*(d_from_source+d_refl)*n_subs)
+        self.S21 = S21 * np.exp(-1j*k*d_from_source*n_subs -1j*k*d_tran*n_subs2)
 
         if save:
             self.save_s_params()
