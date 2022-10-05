@@ -28,6 +28,7 @@ class MetamaterialSimulation():
                  sx: float = None, sy: float = None, sz: float = None,
                  dimensions: int = 3,
                  pol: int = mp.Ex,
+                 layers: int = 1,
                 ):
 
         self.period = period
@@ -38,7 +39,11 @@ class MetamaterialSimulation():
         self.substrate2 = substrate2
         self.substrate_n_range = substrate_n_range
         self.substrate2_n_range = substrate2_n_range
-        self.period_x, self.period_y, self.period_z = period_x, period_y, period_z
+
+        self.period_x = period_x if period_x is not None else period
+        self.period_y = period_y if period_y is not None else period
+        self.period_z = period_z if period_z is not None else period
+
         self.dimensions = dimensions
         self.pol = pol
         self.resolution = resolution
@@ -89,15 +94,19 @@ class MetamaterialSimulation():
                 self.width = self.fmax-self.fmin
                 self.nfreqs = len(self.freqs)
 
+        # If layers are specified, add them to the geometry
+        if layers > 1:
+            self.geometry = add_layers(self.geometry, layers-1, separation=self.period_z)
+
         # Depth of the simulation
-        self.depth = 4/self.fmin if self.source_type == 'gaussian' else 4*self.wvl
+        self.depth = 2/self.fmin if self.source_type == 'gaussian' else 2*self.wvl
 
         self.sx = self.period
         self.sy = self.depth if dimensions == 2 else self.period
         self.sz = 0 if dimensions == 2 else self.depth
 
         # Absorbing boundary conditions
-        self.dpml = 2/self.fmin if self.source_type == 'gaussian' else 2/self.fcen
+        self.dpml = 1/self.fmin if self.source_type == 'gaussian' else 1/self.fcen
         if dimensions == 2:
             self.sy += 2*self.dpml
             self.depth += 2*self.dpml
@@ -216,7 +225,7 @@ class MetamaterialSimulation():
 
 
 
-    def plot2D(self, field=None, plane='xy'):
+    def plot2D(self, field=None, plane='xy', save: bool = False, filename: str = ''):
         """Plot simulation results in 2D."""
 
         if self.dimensions == 2:
@@ -240,6 +249,9 @@ class MetamaterialSimulation():
             else:
                 raise ValueError('Simulation has not been run yet.')
 
+        if save:
+            filename = filename if filename != '' else 'plot2D.png'
+            plt.savefig(filename)
 
     def get_s_params(self,
                      plot: str = None,
@@ -351,3 +363,16 @@ def get_mm_thickness(geometry: List[GeometricObject]):
             h_min = block.center.z - block.size.z/2
 
     return h_max - h_min
+
+
+def add_layers(geometry: List[GeometricObject], nlayers: int, separation: float):
+    """Add nlayers of the given geometry separated by a distance."""
+    assert nlayers > 0
+    h = get_mm_thickness(geometry)
+    result = []
+    for i in range(nlayers+1):
+        for block in geometry:
+            shift = mp.Vector3(0, 0, separation*(i-nlayers/2))
+            result.append(mp.Block(size=block.size, center=block.center+shift, material=block.material))
+
+    return result
