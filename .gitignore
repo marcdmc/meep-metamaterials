@@ -142,3 +142,5 @@ examples/*.h5
 examples/*/*.hdf5
 examples/*/*.pkl
 examples/*/*.xlsx
+*.mat
+notes.txt
