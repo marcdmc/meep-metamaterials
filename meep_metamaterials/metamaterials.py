@@ -50,7 +50,8 @@ class MetamaterialSimulation():
 
         self.pixel_size = 1/self.resolution
 
-        self.mm_thickness = get_mm_thickness(geometry) # Thickness of metamaterial
+        self.mm_thickness = get_mm_thickness(geometry, self.dimensions) # Thickness of metamaterial
+        # print('Metamaterial thickness: {} um'.format(self.mm_thickness))
 
         # Sources
         if source:
@@ -97,10 +98,13 @@ class MetamaterialSimulation():
         # If layers are specified, add them to the geometry
         if layers > 1:
             self.geometry = add_layers(self.geometry, layers-1, separation=self.period_z)
+            # Update whole metamaterial thickness
+            self.mm_thickness = layers*self.period_z + self.mm_thickness
 
         # Depth of the simulation
         self.depth = 2/self.fmin if self.source_type == 'gaussian' else 2*self.wvl
 
+        # Simulation domain size
         self.sx = self.period
         self.sy = self.depth if dimensions == 2 else self.period
         self.sz = 0 if dimensions == 2 else self.depth
@@ -114,6 +118,7 @@ class MetamaterialSimulation():
             self.sz += 2*self.dpml
             self.depth += 2*self.dpml
 
+        # Automatically add source
         if source is None:
             source_plane = mp.Vector3(self.sx, self.sy)
             source_center = mp.Vector3(z=-self.depth/2+self.dpml+0.1*self.depth/4)
@@ -134,6 +139,7 @@ class MetamaterialSimulation():
                 break
         self.dimensions = 2 if not has_depth else 3
 
+        # Transform according to dimensions
         if dimensions == 1:
             pass 
         elif dimensions == 2:
@@ -268,25 +274,30 @@ class MetamaterialSimulation():
         p2 = np.array([coef[0] for coef in coefs2]) # Transmitted field
         p3 = np.array([coef[0] for coef in coefs1]) # Incident field
 
+        self.raw_coefs = [p1, p2, p3]
+
         # S parameters
         S11 = p1/p3
         S21 = p2/p3
 
-        # Compensate phase shift due to distance from the source and monitors
+        self.raw_coefs = [p1, p2, p3, S11, S21] # Save for debugging
+
         k = 2*np.pi*np.array(self.freqs)
         d = self.mm_thickness
         n_subs = self.substrate.epsilon_diag[0]
         n_subs2 = self.substrate2.epsilon_diag[1]
-        d_from_source = self.source.center.z-d/2 if self.dimensions == 3 else np.abs(self.source.center.y)-d/2
-        d_refl = self.refl_fr.center.z-d/2 if self.dimensions == 3 else np.abs(self.refl_fr.center.y)-d/2
-        d_tran = self.tran_fr.center.z-d/2 if self.dimensions == 3 else np.abs(self.tran_fr.center.y)-d/2
+        # Distances from source and monitors to material slab
+        d_from_source = np.abs(self.source.center.z)-d/2 if self.dimensions == 3 else np.abs(self.source.center.y)-d/2
+        d_refl = np.abs(self.refl_fr.center.z)-d/2 if self.dimensions == 3 else np.abs(self.refl_fr.center.y)-d/2
+        d_tran = np.abs(self.tran_fr.center.z)-d/2 if self.dimensions == 3 else np.abs(self.tran_fr.center.y)-d/2
 
-        print(f'd_from_source = {d_from_source}')
-        print(f'd_refl = {d_refl}')
-        print(f'd_tran = {d_tran}')
+        self.d_from_source = d_from_source
+        self.d_refl = d_refl
+        self.d_tran = d_tran
 
-        self.S11 = S11 * np.exp(-1j*k*(d_from_source+d_refl)*n_subs)
-        self.S21 = S21 * np.exp(-1j*k*d_from_source*n_subs -1j*k*d_tran*n_subs2)
+        # Compensate phase shift due to distance from the source and monitors
+        self.S11 = S11 * np.exp(-1j*k*2*d_refl*n_subs)
+        self.S21 = S21 * np.exp(-1j*k*d_refl*n_subs-1j*k*d_tran*n_subs2)
 
         if save:
             self.save_s_params()
@@ -294,6 +305,14 @@ class MetamaterialSimulation():
             self.plot_s_params(plot, plot_title, filename)
 
         return [self.S11, self.S21]
+
+    # Alias of the previous function
+    # TODO: Can this be done in a more pro or cool way?
+    def get_s_parameters(self, plot: str = None,
+                         save: bool = False,
+                         plot_title: str = None,
+                         filename: str = None):
+        return self.get_s_params(plot, save, plot_title, filename)
 
     
     def save_s_params(self):
@@ -351,18 +370,59 @@ class MetamaterialSimulation():
             plt.savefig(self.dir + 's_params_TM' + timestr + '.png')
         print('Saving S parameters plot...')
 
+    
+    def reset_meep(self):
+        """Reset simulation."""
+        self.sim.reset_meep()
 
 
-def get_mm_thickness(geometry: List[GeometricObject]):
+
+def get_mm_thickness(geometry: List[GeometricObject], dimensions: int = 3) -> float:
+    """Given a geometry returns the thickness of the metamaterial layer."""
     h_max = 0
     h_min = 0
-    for block in geometry:
-        if block.center.z + block.size.z/2 > h_max:
-            h_max = block.center.z + block.size.z/2
-        if block.center.z - block.size.z/2 < h_min:
-            h_min = block.center.z - block.size.z/2
+    if dimensions == 3:
+        for block in geometry:
+            if block.center.z + block.size.z/2 > h_max:
+                h_max = block.center.z + block.size.z/2
+            if block.center.z - block.size.z/2 < h_min:
+                h_min = block.center.z - block.size.z/2
+    elif dimensions == 2:
+        for block in geometry:
+            if block.center.y + block.size.y/2 > h_max:
+                h_max = block.center.y + block.size.y/2
+            if block.center.y - block.size.y/2 < h_min:
+                h_min = block.center.y - block.size.y/2
 
     return h_max - h_min
+
+def mm_hmax(geometry: List[GeometricObject], dimensions: int = 3) -> float:
+    """Given a geometry returns the maximum height of the metamaterial layer in the propagation axis."""
+    h_max = 0
+    if dimensions == 3:
+        for block in geometry:
+            if block.center.z + block.size.z/2 > h_max:
+                h_max = block.center.z + block.size.z/2
+    elif dimensions == 2:
+        for block in geometry:
+            if block.center.y + block.size.y/2 > h_max:
+                h_max = block.center.y + block.size.y/2
+
+    return h_max
+
+def mm_hmin(geometry: List[GeometricObject], dimensions: int = 3) -> float:
+    """Given a geometry returns the minimum height of the metamaterial layer in the propagation axis."""
+    h_min = 0
+    if dimensions == 3:
+        for block in geometry:
+            if block.center.z - block.size.z/2 < h_min:
+                h_min = block.center.z - block.size.z/2
+    elif dimensions == 2:
+        for block in geometry:
+            if block.center.y - block.size.y/2 < h_min:
+                h_min = block.center.y - block.size.y/2
+
+    return h_min
 
 
 def add_layers(geometry: List[GeometricObject], nlayers: int, separation: float):
