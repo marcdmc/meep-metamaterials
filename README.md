@@ -1,4 +1,7 @@
-![](doc/img/wordart.png)
+<h1 align="center">
+<img src="/doc/img/metamaterials_logo.png" width="450">
+</h1>
+
 Tools for the simulation and study of metamaterials using [MEEP](https://github.com/NanoComp/meep) (FTDT).
  
 ## Features
