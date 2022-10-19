@@ -1,0 +1,57 @@
+{
+    "columns": {
+        "xi": {
+            "type": "space",
+            "units": "mm",
+            "scale": "0.1"
+        },
+        "yi": {
+            "type": "space",
+            "units": "mm",
+            "scale": "0.1"
+        },
+        "pi": {
+            "type": "power",
+            "units": "mW",
+            "scale": "307"
+        },
+        "xf": {
+            "type": "space",
+            "units": "mm",
+            "scale": "0.1"
+        },
+        "yf": {
+            "type": "space",
+            "units": "mm",
+            "scale": "0.1"
+        },
+        "pf": {
+            "type": "power",
+            "units": "mW",
+            "scale": "307"
+        },
+        "t": {
+            "type": "time",
+            "units": "s",
+            "scale": "1"
+        },
+        "X": {
+            "type": "space",
+            "units": "mm",
+            "scale": "1"
+        },
+        "Y": {
+            "type": "space",
+            "units": "mm",
+            "scale": "1"
+        },
+        "Z": {
+            "type": "space",
+            "units": "mm",
+            "scale": "1"
+        }
+    },
+    "instructions": {
+        "method": "interpolate"
+    }
+}
