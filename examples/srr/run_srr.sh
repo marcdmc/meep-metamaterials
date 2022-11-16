@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-# Important: this should be run from the base conda environment
+# Note: this should be run from the base conda environment
 
 # Slurm sbatch options
 #SBATCH -n 8
@@ -11,4 +11,4 @@ module load anaconda/2022b
 source activate pmp
 
 # Run the script
-mpirun -n 8 python examples/srr/srr.py > output.txt
+mpirun -n 8 python examples/srr/srr_H_pol.py > examples/srr/output.txt

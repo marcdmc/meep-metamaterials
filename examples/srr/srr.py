@@ -11,14 +11,14 @@ from meep_metamaterials.retrieval import retrieval
 
 resolution = 100  # pixels/um
 
-pol = mp.Ex # Incident polarization
+pol = mp.Ex # Incident polarization
 
-# Dimensions in um
+# Dimensions in um
 l = .320
 w = .090
-a = .450 # Lattice constant
+a = .450 # Lattice constant
 gap = .070
-t = .020 # Thickness
+t = .020 # Thickness
 
 geometry = [
     mp.Block(size=mp.Vector3(l, w, t), center=mp.Vector3(0, l/2-w/2, 0), material=Au),
@@ -37,7 +37,7 @@ sim.run()
 [S11, S21] = sim.get_s_parameters()
 
 params = retrieval.eff_parameters(freqs, t, S11, S21)
-epsilon = params['eps'] # Retrieved permittivity
-mu = params['mu']       # Retrieved permeability
+epsilon = params['eps'] # Retrieved permittivity
+mu = params['mu']       # Retrieved permeability
 
 sim.reset_meep()

@@ -16,7 +16,8 @@ def eff_parameters(freqs: np.ndarray,
                    S21: np.ndarray,
                    branch: int = 0,
                    plot_branches: bool = False,
-                   continuity: bool = False):
+                   continuity: bool = False,
+                   th: float = 50):
     """
     Retrieve the effective parameters from the S-parameters.
 
@@ -32,6 +33,7 @@ def eff_parameters(freqs: np.ndarray,
     `branch` : `int`, default `0`
     `plot_branches` : `bool`, default `False`
     `continuity` : `bool`, default `False`
+    `th` : `float`, default `100`. Threshold for the continuity condition.
 
     Returns
     `eps` : `float`
@@ -80,12 +82,12 @@ def eff_parameters(freqs: np.ndarray,
         while i < len(freqs)-1:
             final_n[i] = n[current_branch-min_branch][i]
             # If there is a discontinuity, change branch
-            if dn[branch-min_branch][i-1] > 50:
+            if dn[branch-min_branch][i-1] > th:
                 current_branch -= 1
                 final_n[i+1] = n[current_branch-min_branch][i+1]
                 i += 1
                 
-            elif dn[branch-min_branch][i-1] < -50:
+            elif dn[branch-min_branch][i-1] < -th:
                 current_branch += 1
                 final_n[i+1] = n[current_branch-min_branch][i+1]
                 i += 1
@@ -102,7 +104,7 @@ def eff_parameters(freqs: np.ndarray,
     if plot_branches:
         plot_complex_branches(freqs, n, z, einkd, k, d, branch, n_branch)
 
-    return {'eps': eps, 'mu': mu, 'n': n_branch, 'z': z}
+    return {'eps': eps, 'mu': mu, 'n': n_branch, 'z': z, 'dn': dn, 'ns': n}
 
 def plot_complex_branches(freqs, n, z, einkd, k, d, selected_branch, n_branch):
     plt.figure()

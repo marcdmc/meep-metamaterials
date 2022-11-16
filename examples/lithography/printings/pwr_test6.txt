@@ -1,0 +1,10 @@
+T = 0.6 # Period in mm
+w = 0.3 # Width in mm
+t = 0.05 # Thickness in mm
+pixel_size = 0.0008 # Pixel size in mm
+
+powers = np.linspace(np.sqrt(0.2), np.sqrt(1), 8)**2 # Range of powers in W
+speeds = np.linspace(np.sqrt(100), np.sqrt(300), 8)**2 # Range of speeds in mm/s
+
+1507968 rows × 10 columns
+0.7417566692866244 hours

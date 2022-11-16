@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from meep.materials import Ag
 
-n = 5          # index of square grating
-a = 1.2            # period 
+n = 2          # index of square grating
+a = .7            # period 
 d = 0.5*a            # side of square
-t = 0.2 # thickness of grating
+t = 1 # thickness of grating
 dpml = 1 # PML thickness
 pad = 2 # padding between grating and PML
 

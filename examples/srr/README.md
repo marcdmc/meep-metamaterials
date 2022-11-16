@@ -1,5 +1,5 @@
 ## Split Ring Resonators
----
+
 These examples show the simulation of a metamaterial comprised of gold Split Ring Resonators (SRRs) and the retrieval of its effective parameters.
 
 The script `srr.py` contains the simulation of the SRRs and the retrieval of the effective parameters. It can be run via the command line:

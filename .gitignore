@@ -144,3 +144,6 @@ examples/*/*.pkl
 examples/*/*.xlsx
 *.mat
 notes.txt
+/Marc
+.vscode
+/tmp

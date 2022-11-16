@@ -2,8 +2,10 @@ import meep as mp
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import time
-
+import time, datetime
+import pickle
+from meep import mpb
+from IPython.display import Video
 from typing import Callable, List, Tuple, Union, Optional
 from meep.geom import Vector3, init_do_averaging, GeometricObject, Medium
 
@@ -11,7 +13,7 @@ from . import constants as cnt
 
 class MetamaterialSimulation():
     def __init__(self,
-                 period: int,
+                 period: float,
                  geometry: Optional[List[GeometricObject]],
                  source = None,
                  freq: float = None,
@@ -51,7 +53,8 @@ class MetamaterialSimulation():
         self.pixel_size = 1/self.resolution
 
         self.mm_thickness = get_mm_thickness(geometry, self.dimensions) # Thickness of metamaterial
-        # print('Metamaterial thickness: {} um'.format(self.mm_thickness))
+        # Add some depth if no geometry is detected (ex: for material function)
+        self.mm_thickness = self.period_z if self.mm_thickness == 0 else self.mm_thickness
 
         # Sources
         if source:
@@ -97,12 +100,12 @@ class MetamaterialSimulation():
 
         # If layers are specified, add them to the geometry
         if layers > 1:
-            self.geometry = add_layers(self.geometry, layers-1, separation=self.period_z)
+            self.geometry = self.add_layers(self.geometry, layers-1, separation=self.period_z)
             # Update whole metamaterial thickness
             self.mm_thickness = layers*self.period_z + self.mm_thickness
 
         # Depth of the simulation
-        self.depth = 2/self.fmin if self.source_type == 'gaussian' else 2*self.wvl
+        self.depth = 2/self.fmin+self.mm_thickness if self.source_type == 'gaussian' else 2*self.wvl+self.mm_thickness
 
         # Simulation domain size
         self.sx = self.period
@@ -184,6 +187,7 @@ class MetamaterialSimulation():
                 self.geometry.insert(0, sb)
 
 
+        # Create simulation
         self.sim = mp.Simulation(
             cell_size=self.cell,
             sources=[self.source] if dimensions == 3 else [source_2d],
@@ -217,15 +221,30 @@ class MetamaterialSimulation():
 
     def run(self,
             timesteps: int = None,
-            threshold: float = 1e-3):
+            threshold: float = 1e-3,
+            animate: bool = False):
         """
         Runs the simulation.
         """
-        if timesteps is not None:
-            self.sim.run(until=timesteps)
-        else:
-            pt = mp.Vector3(z=self.sz/2-self.dpml-self.pixel_size) if self.dimensions == 3 else mp.Vector3(y=self.sz/2-self.dpml-self.pixel_size)
-            self.sim.run(until_after_sources=mp.stop_when_fields_decayed(50, self.pol, pt, threshold))
+        if not animate:
+            if timesteps is not None:
+                self.sim.run(until=timesteps)
+            else:
+                pt = mp.Vector3(z=self.sz/2-self.dpml-self.pixel_size) if self.dimensions == 3 else mp.Vector3(y=self.sz/2-self.dpml-self.pixel_size)
+                self.sim.run(until_after_sources=mp.stop_when_fields_decayed(50, self.pol, pt, threshold))
+        elif animate:
+            if timesteps is not None:
+                self.sim.run(mp.at_every(0.4/10,animate), until=timesteps)
+            else:
+                animate = mp.Animate2D(self.sim, fields=self.pol, normalize=True) # Init animation
+                pt = mp.Vector3(z=self.sz/2-self.dpml-self.pixel_size) if self.dimensions == 3 else mp.Vector3(y=self.sz/2-self.dpml-self.pixel_size)
+                self.sim.run(mp.at_every(0.4/10, animate),
+                             until_after_sources=mp.stop_when_fields_decayed(50, self.pol, pt, threshold))
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            filename = f"animation-{timestamp}.mp4"
+            fps = 10
+            animate.to_mp4(fps,filename)
+            Video(filename)
 
         self.has_run = True
 
@@ -307,7 +326,7 @@ class MetamaterialSimulation():
         return [self.S11, self.S21]
 
     # Alias of the previous function
-    # TODO: Can this be done in a more pro or cool way?
+    # TODO: Can this alias thing be done in a more pro or cool way?
     def get_s_parameters(self, plot: str = None,
                          save: bool = False,
                          plot_title: str = None,
@@ -330,6 +349,7 @@ class MetamaterialSimulation():
                 df.to_excel(self.dir + 's_params_TM' + timestr + '.xlsx', index=False)
         else:
             raise Exception('S parameters not set. Use Simulation.get_s_params()')
+
 
     def plot_s_params(self, plot, plot_title, filename=None):
         """Plot and save plot of s parameters."""
@@ -375,6 +395,113 @@ class MetamaterialSimulation():
         """Reset simulation."""
         self.sim.reset_meep()
 
+
+    def calculate_bands(self, num_bands, k_points, interpolate=4, use_meep=False, save=False, plot=False, plot_title=None, filename=None):
+        # TODO: Allow non rectangular unit cells (and by default calculate the important k points)
+        # TODO: Allow for 3D simulations
+        if self.dimensions == 3:
+            raise Exception('3D bands not implemented yet')
+
+        if use_meep:
+            return self._calculate_bands_meep(num_bands, k_points, interpolate)
+
+        geometry_lattice = mp.Lattice(size=mp.Vector3(self.period_x, self.period_y))
+
+        # Interpolate between k points
+        k_points = mp.interpolate(8, k_points)
+
+        # Initialize mode solver
+        self.ModeSolver = mpb.ModeSolver(
+            geometry=self.geometry,
+            geometry_lattice=geometry_lattice,
+            k_points=k_points,
+            resolution=self.resolution,
+            num_bands=num_bands,
+            default_material=self.substrate,
+        )
+
+        # Calculate TE bands
+        self.ModeSolver.run_te()
+        te_bands = self.ModeSolver.all_freqs
+        # Calculate TM bands
+        self.ModeSolver.run_tm()
+        tm_bands = self.ModeSolver.all_freqs
+
+        if plot:
+            self.plot_bands([te_bands, tm_bands], plot_title, filename)
+        if save:
+            # Save with pickle
+            with open(self.dir + filename + '.pickle', 'wb') as f:
+                pickle.dump([te_bands, tm_bands], f)
+
+        return [te_bands, tm_bands, num_bands]
+
+    def _calculate_bands_meep(self, num_bands, k_points, interpolate=4):
+        """Calculate bands using meep (point by point)."""
+
+        # TODO: change this to a user defined frequency or reasonable default
+        fcen = 1
+        df = 2
+
+        # Create momentary simulation
+        source = [mp.Source(mp.GaussianSource(frequency=fcen, fwidth=df), component=mp.Ez, center=mp.Vector3())]
+        sim = mp.Simulation(
+            cell_size=mp.Vector3(self.period_x, self.period_y),
+            geometry=self.geometry,
+            resolution=self.resolution,
+            default_material=self.substrate,
+            k_point=mp.Vector3(),
+        )
+
+        k_interp = interpolate
+        k_points = mp.interpolate(k_interp, k_points)
+        freqs = sim.run_k_points(300, k_points)
+
+        # TODO: Make this optional
+        # Save
+        with open('freqs_te.pickle', 'wb') as f:
+            pickle.dump(freqs, f)
+
+        # Plot
+        ks = np.linspace(-1, 1, k_interp+2)
+        for i in range(k_interp+2):
+            for w in freqs[i]:
+                plt.plot(ks[i], w, '.k')
+        plt.xlim([-1, 1])
+        plt.ylim([1.3, 1.7])
+        plt.savefig('Marc/LandauLevel/meep/freqs_te.png')
+
+        return [freqs, num_bands]
+
+    def plot_bands(self, bands, k_points, plot_title=None, filename=None):
+        te_bands = bands[0]
+        tm_bands = bands[1]
+        num_bands = bands[2]
+
+        # Get three periods of the geometry
+        md = mpb.MPBData(rectify=True, periods=3, resolution=32)
+        eps = self.ModeSolver.get_epsilon()
+        converted_eps = md.convert(eps)
+
+        fig, ax1 = plt.subplots()
+
+        left, bottom, width, height = [0.7, 0.65, 0.2, 0.2]
+        ax2 = fig.add_axes([left, bottom, width, height])
+
+        for i in range(num_bands):
+            te_band = [b[i] for b in te_bands]
+            tm_band = [b[i] for b in tm_bands]
+            ax1.plot(te_band, 'r')
+
+        ax2.imshow(converted_eps.T, interpolation='spline36', cmap='binary')
+        plt.xticks([])
+        plt.yticks([])
+        ax1.grid()
+
+        plt.show()
+        plt.savefig(filename+'.png')
+
+        return
 
 
 def get_mm_thickness(geometry: List[GeometricObject], dimensions: int = 3) -> float:

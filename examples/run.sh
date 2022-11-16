@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 # Slurm sbatch options
-#SBATCH -n 20
+#SBATCH -n 8
 #SBATCH -N 1
 
 # Loading the required module

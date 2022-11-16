@@ -1,5 +1,5 @@
 import meep as mp
-import meep_retrieval as mr
+import meep_metamaterials.metamaterials as mm
 
 lambda_min = 1
 lambda_max = 5
@@ -9,7 +9,7 @@ d = .45
 a = 2*d
 t = 0.02
 
-sim = mr.Simulation(resolution=60, cell=a, fmin=1/lambda_max, fmax=1/lambda_min, nfreqs=nfreqs, pol=pol)
+sim = mm.Simulation(resolution=60, cell=a, fmin=1/lambda_max, fmax=1/lambda_min, nfreqs=nfreqs, pol=pol)
 
 metal = mp.Medium(index=3)
 
